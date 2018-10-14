@@ -204,3 +204,12 @@ def camera2XYZworld(xyzcamera,extrinsics):
 def transformpointcloud(xyz, rt):
     rt_ = [(float(t[0]),float(t[1]),float(t[2])) for t in rt]
     return np.matmul(rt_, np.transpose(xyz))
+
+###############################################################################
+### MAIN RUN PROCEDURE
+###############################################################################
+
+if __name__ == "__main__":
+
+    objects = {} # { ID : [name,colour,frame_inds,oldIDs] }
+    frames  = {} # 
