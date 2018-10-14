@@ -65,27 +65,27 @@ def processJSON (json_files, currentpath, local, plot):
                          (currentpath,'data',name,'intrinsics.txt'),local),(3,3)))
 
         # get camera extrinsics
-        exFile = os.path.listdir(os.path.join('data',name,'extrinsics'))[-1] 
+        ex_file = os.path.listdir(os.path.join('data',name,'extrinsics'))[-1] 
         extrinsicsC2W = np.transpose(np.reshape(readvaluesfromtext(os.path.join \
-          (currentpath,'data',name,'extrinsics',exFile),local), \
+          (currentpath,'data',name,'extrinsics',ex_file),local), \
           (-1,3,4)),(1,2,0))
 
         for i, f in enumerate(frames):
             if i in empty_frames:
                 continue
-            imagePath = os.path.join(currentpath,"data",name,"image")
-            depthPath = os.path.join(currentpath,"data",name,"depth")
-            imageList = os.path.listdir(imagePath)
-            depthList = os.path.listdir(depthPath)
-            for img in imageList:
-                fileNum = "0"*(7-len(str(1+i*5)))+str(1+i*5)+"-"
-                if fileNum in img:
-                    image = os.path.join(imagePath,img)
+            image_path = os.path.join(currentpath,"data",name,"image")
+            depth_path = os.path.join(currentpath,"data",name,"depth")
+            image_list = os.path.listdir(image_path)
+            depth_list = os.path.listdir(depth_path)
+            for img in image_list:
+                file_num = "0"*(7-len(str(1+i*5)))+str(1+i*5)+"-"
+                if file_num in img:
+                    image = os.path.join(image_path,img)
                     break
-            for img in depthList:
-                fileNum = "0"*(7-len(str(1+i*5)))+str(1+i*5)+"-"
-                if fileNum in img:
-                    depth = os.path.join(depthPath,img)
+            for img in depth_list:
+                file_num = "0"*(7-len(str(1+i*5)))+str(1+i*5)+"-"
+                if file_num in img:
+                    depth = os.path.join(depth_path,img)
                     break
 
             background = Image.open(image,'r').convert('RGBA') 
@@ -94,12 +94,12 @@ def processJSON (json_files, currentpath, local, plot):
 
             # ---------------------------------------------------- #
             # create frame and fill with data
-            currentFrame = Frame(i,width,height)
-            currentFrame.loc = name
-            currentFrame.background = background
-            currentFrame.depthMap = depthread(depth,local)
-            currentFrame.intrinsics = K
-            currentFrame.extrinsics = getextrinsics(extrinsicsC2W,i)
+            current_frame = Frame(i,width,height)
+            current_frame.loc = name
+            current_frame.background = background
+            current_frame.depthMap = depthread(depth,local)
+            current_frame.intrinsics = K
+            current_frame.extrinsics = getextrinsics(extrinsicsC2W,i)
             exceptions   = []
             conflicts    = []
             polygons     = {}
@@ -108,43 +108,43 @@ def processJSON (json_files, currentpath, local, plot):
                 exists = False
                 for o in allObjects:
                     if objects[ID]['name'] == o.name:
-                        currentObject = o
-                        currentObject.updateID(ID)
+                        current_object = o
+                        current_object.updateID(ID)
                         exists = True
                         break
                 if not exists: # new object
-                    currentObject = Object1(ID,objects[ID]['name'])
-                    allObjects.append(currentObject)
-                polygons[str(currentObject.getName())] = []
-                currentObject.addFrame(name,currentFrame)
+                    current_object = Object1(ID,objects[ID]['name'])
+                    allObjects.append(current_object)
+                polygons[str(current_object.getName())] = []
+                current_object.add_frame(name,current_frame)
                 for j, x in enumerate(polygon['x']):
                     x = int(round(x))
                     y = int(round(polygon['y'][j]))
-                    polygons[str(currentObject.getName())].append((x,y))
+                    polygons[str(current_object.getName())].append((x,y))
                     if 0 < x <= width and 0 < y <= height:
-                        if (y,x) in zip(currentFrame.row,currentFrame.col):
-                            conflicts.append(str([(x,y),currentObject.getName()]))
+                        if (y,x) in zip(current_frame.row,current_frame.col):
+                            conflicts.append(str([(x,y),current_object.getName()]))
                         else:
-                            currentFrame.addData(currentObject,x,y)
+                            current_frame.add_data(current_object,x,y)
                     else:
-                        exceptions.append(str([(x,y),currentObject.getName()]))
-                currentFrame.addObject(currentObject)
+                        exceptions.append(str([(x,y),current_object.getName()]))
+                current_frame.addObject(current_object)
 
-            filePath = os.path.join('data',name)
+            file_path = os.path.join('data',name)
             try:
-                os.path.makedirs(filePath)
+                os.path.makedirs(file_path)
             except OSError:
-                if not os.path.isdir(filePath):
+                if not os.path.isdir(file_path):
                     raise
             
             try:
-                os.path.makedirs(os.path.join(filePath,str(i)))
+                os.path.makedirs(os.path.join(file_path,str(i)))
             except OSError:
-                if not os.path.isdir(os.path.join(filePath,str(i))):
+                if not os.path.isdir(os.path.join(file_path,str(i))):
                     raise
 
-            passed  = open(os.path.join(filePath,str(i),'passed.txt'),'w')
-            dropped = open(os.path.join(filePath,str(i),'dropped.txt'),'w')
+            passed  = open(os.path.join(file_path,str(i),'passed.txt'),'w')
+            dropped = open(os.path.join(file_path,str(i),'dropped.txt'),'w')
 
 ###############################################################################
 ### IMPORT TOOLS
@@ -197,7 +197,7 @@ def camera2XYZworld(xyzcamera,extrinsics):
                         xyzcamera[1][i][j],\
                         xyzcamera[2][i][j])
                 xyz.append(data)
-    xyzworld = transformPointCloud(xyz, extrinsics)
+    xyzworld = transformpointcloud(xyz, extrinsics)
     vals = (xyzworld, xyzcamera[3])
     return vals
 
