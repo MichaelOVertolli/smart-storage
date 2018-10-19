@@ -17,137 +17,142 @@
 #along with this program.  If not, see http://www.gnu.org/licenses/
 ###############################################################################
 
+import abc
+from collections import namedtuple
 from glob import glob
 import json
 import numpy as np
 import os
 from PIL import Image
 
+###############################################################################
+### PIPELINE FUNCTIONS
+###############################################################################
 
-def get_json():
-    return glob('./smartstore/json/*')
-
-
-def processJSON (json_files, currentpath, plot):
+def processjson(lbl_record,
+                json_folder='./smartstore/json/'):
     '''process each json file
 
     data:           the data contained in the json file
     currentpath:    the root path of the database
-    plot:           number of different views plotted per frame
     '''
-
-    for jn, jfile in enumerate(json_files):
+    lblsets = {}
+    json_files = get_json(json_folder)
+    for jfile in json_files:
         with open(jfile) as jdata:
             data = json.load(jdata)
 
+        file_name = data['name']
+        lbls = data['objects']
 
-        # parse json data into variables
-        loc = data['name']
-        date = data['date']
-        frames = data['frames']
-        objects = data['objects']
-        
-        # store indices of the empty frames & objects
-        empty_frames = []
-        empty_objects = []
-
-        for i, f in enumerate(frames):
+        for f in enumerate(data['frames']):
             if not f or not f['polygon']:
-                empty_frames.append(i)
-
-        for i,o in enumerate(objects):
-            if not o:
-                empty_objects.append(i)
-
-        # get camera intrinsics
-        K = np.transpose(np.reshape(readvaluesfromtxt(os.path.join \
-                         (currentpath,'data',name,'intrinsics.txt')),(3,3)))
-
-        # get camera extrinsics
-        ex_file = os.path.listdir(os.path.join('data',name,'extrinsics'))[-1] 
-        extrinsicsC2W = np.transpose(np.reshape(readvaluesfromtext(os.path.join \
-          (currentpath,'data',name,'extrinsics',ex_file)), \
-          (-1,3,4)),(1,2,0))
-
-        for i, f in enumerate(frames):
-            if i in empty_frames:
                 continue
-            image_path = os.path.join(currentpath,"data",name,"image")
-            depth_path = os.path.join(currentpath,"data",name,"depth")
-            image_list = os.path.listdir(image_path)
-            depth_list = os.path.listdir(depth_path)
-            for img in image_list:
-                file_num = "0"*(7-len(str(1+i*5)))+str(1+i*5)+"-"
-                if file_num in img:
-                    image = os.path.join(image_path,img)
-                    break
-            for img in depth_list:
-                file_num = "0"*(7-len(str(1+i*5)))+str(1+i*5)+"-"
-                if file_num in img:
-                    depth = os.path.join(depth_path,img)
-                    break
-
-            background = Image.open(image,'r').convert('RGBA') 
-
-            (width,height) = background.size
-
-            # ---------------------------------------------------- #
-            # create frame and fill with data
-            current_frame = Frame(i,width,height)
-            current_frame.loc = name
-            current_frame.background = background
-            current_frame.depthMap = depthread(depth)
-            current_frame.intrinsics = K
-            current_frame.extrinsics = getextrinsics(extrinsicsC2W,i)
-            exceptions   = []
-            conflicts    = []
-            polygons     = {}
+            try:
+                
+            frame = Frame._make([file_name, i])
+            try:
+                flblset = lblsets[frame]
+            except KeyError:
+                flblset = {}
+                lblsets[frame] = flblset
             for polygon in f['polygon']:
-                ID = polygon['object']
-                exists = False
-                for o in allObjects:
-                    if objects[ID]['name'] == o.name:
-                        current_object = o
-                        current_object.updateID(ID)
-                        exists = True
-                        break
-                if not exists: # new object
-                    current_object = Object1(ID,objects[ID]['name'])
-                    allObjects.append(current_object)
-                polygons[str(current_object.getName())] = []
-                current_object.add_frame(name,current_frame)
+                old_id = polygon['object']
+                lbl = lbls[old_id]['name']
+                new_id = lbl_record.get_or_add(lbl)
+                point_cluster = []
                 for j, x in enumerate(polygon['x']):
-                    x = int(round(x))
-                    y = int(round(polygon['y'][j]))
-                    polygons[str(current_object.getName())].append((x,y))
-                    if 0 < x <= width and 0 < y <= height:
-                        if (y,x) in zip(current_frame.row,current_frame.col):
-                            conflicts.append(str([(x,y),current_object.getName()]))
-                        else:
-                            current_frame.add_data(current_object,x,y)
-                    else:
-                        exceptions.append(str([(x,y),current_object.getName()]))
-                current_frame.addObject(current_object)
+                    # will handle rounding later... want more raw data
+                    y = polygon['y'][j]
+                    point_cluster.append((x,y))
+                point_cluster.sort()
+                lblset = LabelSet._make([frame, lbl, tuple(point_cluster)])
+                flblset[lblset] = None
+    return lblsets
 
-            file_path = os.path.join('data',name)
-            try:
-                os.path.makedirs(file_path)
-            except OSError:
-                if not os.path.isdir(file_path):
-                    raise
-            
-            try:
-                os.path.makedirs(os.path.join(file_path,str(i)))
-            except OSError:
-                if not os.path.isdir(os.path.join(file_path,str(i))):
-                    raise
+###############################################################################
+### DATA CLASSES
+###############################################################################
 
-            passed  = open(os.path.join(file_path,str(i),'passed.txt'),'w')
-            dropped = open(os.path.join(file_path,str(i),'dropped.txt'),'w')
+Frame = namedtuple('Frame', 'name, id')
+LabelSet = namedtuple('LabelSet', 'frame, label, points')
+DepthSet = namedtuple('DepthSet', 'frame, depthmap')
+
+###############################################################################
+### REPOSITORY CLASSES
+###############################################################################
+
+class IDRecord(abc.ABC):
+    class DNEException(Exception):
+        pass
+    
+    def __init__(self, fname):
+        self.fname = fname
+        self.record = self.open_file(fname)
+
+    @abc.abstractmethod
+    def open_file(self, fname):
+        pass
+
+    @abc.abstractmethod
+    def update(self)
+        pass
+
+    @abc.abstractmethod
+    def get_count(self):
+        pass
+
+    @abc.abstractmethod
+    def add(self, value):
+        pass
+
+    @abc.abstractmethod
+    def get_id(self, value):
+        pass
+
+    def get_or_add(self, value):
+        try:
+            id_ = self.get_id(value)
+        except DNEException:
+            self.add(value)
+            id_ = self.get_id(value)
+        return id_
+
+
+class PDictIDRecord(IDRecord):
+    def open_file(self, fname):
+        if os.path.exists(fname):
+            with open(fname, 'rb') as f:
+                record = pickle.load(f)
+        else:
+            record = {}
+        return record
+
+    def update(self):
+        with open(fname, 'wb') as f:
+            pickle.dump(self.record, f)
+
+    def get_count(self):
+        return self.record['__count']
+
+    def add(self, value):
+        self.record[value] = self.get_count()
+        self.record['__count'] += 1
+
+    def get_id(self, value):
+        try:
+            id_ = self.record[value]
+        except KeyError:
+            raise IDRecord.DNEException
+        return id_
 
 ###############################################################################
 ### IMPORT TOOLS
 ###############################################################################
+
+def get_json(json_folder):
+    return glob(os.path.join(json_folder, '*'))
+
 
 def get_intrinsics(loc):
     with open(os.path.join(os.getcwd(),'data',loc,'intrinsics.txt'),'r') as fid:
@@ -155,6 +160,7 @@ def get_intrinsics(loc):
                   ''.join(fid.read().decode('utf-8')).split('\n') if x!='']
     intrinsics = np.transpose(np.reshape(values),(3,3))
     return intrinsics 
+
 
 def get_extrinsics(loc,frame_id):
     with open(os.path.listdir(os.path.join('data',loc,'extrinsics'))[-1],'r') as fid:
@@ -171,8 +177,10 @@ def get_extrinsics(loc,frame_id):
                    ext[2][2][frame_id],ext[2][3][frame_id]]]
     return extrinsics
 
+
 # frame_id must be an int
 def get_depth(loc,frame_id):
+    assert(frame_id is int)
     depth_dir  = os.path.join(os.getcwd(),'data',loc,'depth')
     depth_list = os.path.listdir(depth_path)
     for img in depth_list:
@@ -185,6 +193,7 @@ def get_depth(loc,frame_id):
     bit_shift = [[(d >> 3) or (d << 16-3) for d in row] for row in depth_map]
     depth_map = [[float(d)/1000.0 for d in row] for row in bit_shift]
     return depth_map
+
 
 def depth2camera(depth_map,K):
     [x,y] = np.meshgrid(range(1,641),range(1,481))
@@ -199,6 +208,7 @@ def depth2camera(depth_map,K):
     depth_map = [[int(bool(n)) for n in row] for row in depth_map]
     xyzcamera.append(depth_map)
     return xyzcamera
+
 
 def camera2world(xyz_camera,extrinsics):
     xyz = []
@@ -215,6 +225,7 @@ def camera2world(xyz_camera,extrinsics):
     # xyz_camera[3] are the valid world coords corresponding to each [x,y]
     xyz_world = (xyz_world, xyz_camera[3])
     return xyz_world
+
 
 # xyd is a (type='frame', loc, frame_id) tuple
 def depth2world(xyd):
