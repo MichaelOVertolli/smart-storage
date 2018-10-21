@@ -45,11 +45,9 @@ def processjson(lbl_record,
         file_name = data['name']
         lbls = data['objects']
 
-        for f in enumerate(data['frames']):
+        for i, f in enumerate(data['frames']):
             if not f or not f['polygon']:
                 continue
-            try:
-                
             frame = Frame._make([file_name, i])
             try:
                 flblset = lblsets[frame]
@@ -95,7 +93,7 @@ class IDRecord(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def update(self)
+    def update(self):
         pass
 
     @abc.abstractmethod
@@ -113,19 +111,20 @@ class IDRecord(abc.ABC):
     def get_or_add(self, value):
         try:
             id_ = self.get_id(value)
-        except DNEException:
+        except self.DNEException:
             self.add(value)
             id_ = self.get_id(value)
         return id_
 
 
 class PDictIDRecord(IDRecord):
+    COUNT = '__count'
     def open_file(self, fname):
         if os.path.exists(fname):
             with open(fname, 'rb') as f:
                 record = pickle.load(f)
         else:
-            record = {}
+            record = {self.COUNT:0}
         return record
 
     def update(self):
@@ -133,17 +132,17 @@ class PDictIDRecord(IDRecord):
             pickle.dump(self.record, f)
 
     def get_count(self):
-        return self.record['__count']
+        return self.record[self.COUNT]
 
     def add(self, value):
         self.record[value] = self.get_count()
-        self.record['__count'] += 1
+        self.record[self.COUNT] += 1
 
     def get_id(self, value):
         try:
             id_ = self.record[value]
         except KeyError:
-            raise IDRecord.DNEException
+            raise super().DNEException
         return id_
 
 ###############################################################################
@@ -240,20 +239,3 @@ def depth2world(xyd):
     # return a (type='world_matrix',loc,frame_id, xyz_world) tuple
     return ('world_matrix',xyd[1],xyd[2],xyz_world)
 
-###############################################################################
-### MAIN RUN PROCEDURE
-###############################################################################
-
-if __name__ == "__main__":
-
-    # something like this:
-    
-    # iterate over all JSON files
-
-    frames = # get frame IDs for current json file
-
-    for i,frame in enumerate(frames):
-        # insert stuff from processJSON() above that reads loc from json file
-        xyd = ('frame',loc,i) # create tuple to pass into depth2world below
-        xyz_world = depth2world(xyd)
-        processJSON() # TODO: a new version of this function that only processes the labels
