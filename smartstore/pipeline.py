@@ -154,7 +154,7 @@ def get_json(json_folder):
 
 
 def get_intrinsics(loc):
-    with open(os.path.join(os.getcwd(),'data',loc,'intrinsics.txt'),'r') as fid:
+    with open(os.path.join(os.getcwd(),'smartstore','data',loc,'intrinsics.txt'),'r') as fid:
         values = [map(lambda y: float(y), x.split(' ')) for x in
                   ''.join(fid.read().decode('utf-8')).split('\n') if x!='']
     intrinsics = np.transpose(np.reshape(values),(3,3))
@@ -162,7 +162,7 @@ def get_intrinsics(loc):
 
 
 def get_extrinsics(loc,frame_id):
-    with open(os.path.listdir(os.path.join('data',loc,'extrinsics'))[-1],'r') as fid:
+    with open(os.listdir(os.path.join(os.getcwd(),'smartstore','data',loc,'extrinsics'))[-1],'r') as fid:
         values = [map(lambda y: float(y), x.split(' ')) for x in
                   ''.join(fid.read().decode('utf-8')).split('\n') if x!='']
     # get extrinsics for all frames:
@@ -180,8 +180,8 @@ def get_extrinsics(loc,frame_id):
 # frame_id must be an int
 def get_depth(loc,frame_id):
     assert(frame_id is int)
-    depth_dir  = os.path.join(os.getcwd(),'data',loc,'depth')
-    depth_list = os.path.listdir(depth_path)
+    depth_dir  = os.path.join(os.getcwd(),'smartstore','data',loc,'depth')
+    depth_list = os.listdir(depth_path)
     for img in depth_list:
         file_num = "0"*(7-len(str(1+frame_id*5)))+str(1+frame_id*5)+"-"
         if file_num in img:
@@ -223,6 +223,7 @@ def camera2world(xyz_camera,extrinsics):
     xyz_world = np.matmul(rt,np.transpose(xyz))
     # xyz_camera[3] are the valid world coords corresponding to each [x,y]
     xyz_world = (xyz_world, xyz_camera[3])
+    xyz_world[xyz_camera[3] == 0] = -1
     return xyz_world
 
 
@@ -239,3 +240,7 @@ def depth2world(xyd):
     # return a (type='world_matrix',loc,frame_id, xyz_world) tuple
     return ('world_matrix',xyd[1],xyd[2],xyz_world)
 
+
+if __name__ == '__main__':
+    labels = PDictIDRecord('./labels.record')
+    lblsets = processjson(labels)
