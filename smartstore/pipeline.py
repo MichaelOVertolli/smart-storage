@@ -160,7 +160,7 @@ def get_intrinsics(loc):
     intrinsics = np.transpose(np.reshape(values),(3,3))
     return intrinsics 
 
-
+'''
 def get_extrinsics(loc,frame_id):
     with open(os.listdir(os.path.join(os.getcwd(),'smartstore','data',loc,'extrinsics'))[-1],'r') as fid:
         values = [map(lambda y: float(y), x.split(' ')) for x in
@@ -168,6 +168,22 @@ def get_extrinsics(loc,frame_id):
     # get extrinsics for all frames:
     ext = np.transpose(np.reshape(values,(-1,3,4)),(1,2,0))
     # get extrinsics for current frame_id:
+    extrinsics = [[ext[0][0][frame_id],ext[0][1][frame_id], \
+                   ext[0][2][frame_id],ext[0][3][frame_id]],\
+                  [ext[1][0][frame_id],ext[1][1][frame_id], \
+                   ext[1][2][frame_id],ext[1][3][frame_id]],\
+                  [ext[2][0][frame_id],ext[2][1][frame_id], \
+                   ext[2][2][frame_id],ext[2][3][frame_id]]]
+    return extrinsics
+'''
+
+def get_extrinsics(loc,frame_id):
+    exFile = re.compile(r'[0-9]*\.txt') \
+            .findall(urlopen(join(currentPath,'data',loc,'extrinsics')) \
+            .read().decode('utf-8'))[-1]
+    ext = np.transpose(np.reshape(imp.readValuesFromTxt(join \
+          (currentPath,'data',loc,'extrinsics',exFile),local), \
+          (-1,3,4)),(1,2,0))
     extrinsics = [[ext[0][0][frame_id],ext[0][1][frame_id], \
                    ext[0][2][frame_id],ext[0][3][frame_id]],\
                   [ext[1][0][frame_id],ext[1][1][frame_id], \
@@ -242,5 +258,7 @@ def depth2world(xyd):
 
 
 if __name__ == '__main__':
-    labels = PDictIDRecord('./labels.record')
-    lblsets = processjson(labels)
+    #labels = PDictIDRecord('./labels.record')
+    #lblsets = processjson(labels)
+    print get_extrinsics('hotel_umd/maryland_hotel3',1)
+    
